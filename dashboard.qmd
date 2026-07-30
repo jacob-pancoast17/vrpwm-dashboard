@@ -1,0 +1,133 @@
+---
+title: Dashboard
+author: Jacob Pancoast
+format:
+    dashboard:
+        nav-buttons: [linkedin, github]
+server: shiny
+---
+
+```{r}
+#| context: setup
+#| echo: false
+pacman::p_load(tidyverse,
+               sf,
+               shiny)
+
+data_unfiltered <- read_csv("https://data.cdc.gov/api/v3/views/45cq-cw4i/query.csv")
+
+#geography <- read_sf("https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_Boundary_BNDHASH_poly_counties_SP_v1/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")
+
+years <- data_unfiltered |>
+    filter(state_territory == 'vt') |>
+    mutate(year = year(sample_collect_date)) |>
+    select(year) |>
+    distinct() |>
+    arrange(desc(year))
+
+# county <- data_unfiltered |>
+#     filter(state_territory == 'vt') |>
+#     count(counties_served, name = "num") |>
+#     mutate(CNTYNAME = toupper(counties_served))
+
+# spatial <- geography |>
+#     left_join(county, by = "CNTYNAME")
+
+```
+
+``` {r}
+
+# Input for graph year
+selectInput("year", "Year:", choices = c(2026, 2025, 2024, 2023))
+
+plotOutput("plot")
+
+```
+
+``` {r}
+#| context: server
+
+library(tidyverse)
+
+output$plot <- renderPlot({
+
+    # Filter data
+    filtered_data <- data_unfiltered |>
+    group_by(sample_collect_date) |>
+    mutate(year = year(sample_collect_date)) |>
+    filter(state_territory == 'vt') |>
+    filter(year == input$year)
+
+    # Return graph
+    ggplot(
+    data = filtered_data
+    ) +
+    geom_line(
+        mapping = aes(
+        x = sample_collect_date,
+        y = pcr_target_avg_conc
+        )
+    ) + labs(
+        title = input$year
+    )
+})
+
+```
+
+``` {r}
+
+per_site <- data_unfiltered |> 
+    
+    filter(state_territory == 'vt') |>
+
+    # Group by each site
+    group_by(site) |>
+
+    mutate(pcr_target_avg_conc = if_else(
+        pcr_target_avg_conc == 0,
+        lod_sewage / 2,
+        pcr_target_avg_conc
+    )) |>
+
+    # Log transform the concentrations
+    mutate(pcr_target_avg_conc = log1p(pcr_target_avg_conc)) |>
+
+    # Only grab data from last 2 years
+    filter(sample_collect_date > (if_else(
+        month(max(sample_collect_date)) < 8,
+
+        # If we are before August of curr year, use last year's August 1st
+        make_date(year = year(max(sample_collect_date)) - years(1), month = 8, day = 1),
+
+        # If we are past August 1st of curr year, use this year's August 1st
+        make_date(year = year(max(sample_collect_date)), month = 8, day = 1)) - years(2)
+        )
+    ) |>
+
+    summarise(
+        # 10th percentile
+        most_recent_collection_date = max(sample_collect_date),
+        avg_conc = pcr_target_avg_conc[which.max(sample_collect_date)],
+        baseline = quantile(pcr_target_avg_conc, probs = 0.1),
+        std_dev = sd(pcr_target_avg_conc)
+    ) |>
+
+    mutate(wval = (avg_conc - baseline) / std_dev)
+
+    # TO DO: Make it the average of most recent week
+
+```
+
+
+``` {r}
+# ggplot(
+#     data = spatial
+# ) +
+#     geom_sf(
+#         aes(
+#             fill = num
+#         )
+#     ) +
+#     theme_void()
+```
+
