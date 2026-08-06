@@ -12,11 +12,13 @@ server: shiny
 #| echo: false
 pacman::p_load(tidyverse,
                sf,
-               shiny)
+               shiny,
+               leaflet)
 
 data_unfiltered <- read_csv("https://data.cdc.gov/api/v3/views/45cq-cw4i/query.csv")
 
-geography <- read_sf("https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_Boundary_BNDHASH_poly_counties_SP_v1/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")
+geography <- st_read("https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_Boundary_BNDHASH_poly_counties_SP_v1/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson", quiet = TRUE) |>
+    st_transform(4326)
 
 years <- data_unfiltered |>
     filter(state_territory == 'vt') |>
@@ -26,6 +28,8 @@ years <- data_unfiltered |>
     arrange(desc(year))
 
 ```
+
+## Row 
 
 ``` {r}
 
@@ -68,16 +72,22 @@ output$plot <- renderPlot({
 
 ``` {r}
 
-dateInput("date", "Date:")
+min_date <- data_unfiltered |>
+    filter(sample_collect_date == min(sample_collect_date)) |>
+    select(sample_collect_date) |>
+    distinct() |>
+    pull(sample_collect_date)
 
-plotOutput("map")
+dateInput("date", "Date:", min = min_date)
+
+leafletOutput("map")
 
 ```
 
 ``` {r}
 #| context: server
 
-output$map <- renderPlot({
+output$map <- renderLeaflet({
 
     # Step 1 - Group data
 
@@ -199,25 +209,54 @@ output$map <- renderPlot({
                 )
             )
 
-            summary(wval$wval)
+    palette <- colorFactor(
+        palette = c(
+            "#bfc2d9", 
+            "#969fc9", 
+            "#6d7db8", 
+            "#425ba6", 
+            "#153993"
+            ),
+        levels = c(
+            "Very Low", 
+            "Low", 
+            "Moderate", 
+            "High", 
+            "Very High"
+            ),
+        na.color = "#9c9c9c"
+    )
 
-    ggplot(
-        data = spatial
-    ) +
-        geom_sf(
-            aes(
-                fill = category
+    leaflet(
+        spatial,
+        options = leafletOptions(
+            scrollWheelZoom = FALSE,
+            zoomControl = FALSE
             )
-        ) +
-        theme_void() +
-        scale_fill_manual(values = c("Very Low" = "#bfc2d9",
-            "Low" = "#969fc9",
-            "Moderate" = "#6d7db8",
-            "High" = "#425ba6",
-            "Very High" = "#153993",
-            "NA" = "#9c9c9c"))
+        ) |>
+
+        addPolygons(
+            fillColor = ~palette(category),
+            fillOpacity = 0.8,
+            color = "white",
+            weight = 1,
+            label = ~paste0(CNTYNAME, ": ", category),
+            highlightOptions = highlightOptions(weight = 3, color = "#666", bringToFront = TRUE)
+        )
 
     })
 
+```
+
+## Row
+
+``` {r}
+
+textOutput(coverage)
+
+```
+
+``` {r}
+#| context: server
 ```
 
