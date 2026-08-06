@@ -16,7 +16,7 @@ pacman::p_load(tidyverse,
 
 data_unfiltered <- read_csv("https://data.cdc.gov/api/v3/views/45cq-cw4i/query.csv")
 
-#geography <- read_sf("https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_Boundary_BNDHASH_poly_counties_SP_v1/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")
+geography <- read_sf("https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_Boundary_BNDHASH_poly_counties_SP_v1/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")
 
 years <- data_unfiltered |>
     filter(state_territory == 'vt') |>
@@ -24,14 +24,6 @@ years <- data_unfiltered |>
     select(year) |>
     distinct() |>
     arrange(desc(year))
-
-# county <- data_unfiltered |>
-#     filter(state_territory == 'vt') |>
-#     count(counties_served, name = "num") |>
-#     mutate(CNTYNAME = toupper(counties_served))
-
-# spatial <- geography |>
-#     left_join(county, by = "CNTYNAME")
 
 ```
 
@@ -76,58 +68,156 @@ output$plot <- renderPlot({
 
 ``` {r}
 
-per_site <- data_unfiltered |> 
-    
-    filter(state_territory == 'vt') |>
+dateInput("date", "Date:")
 
-    # Group by each site
-    group_by(site) |>
-
-    mutate(pcr_target_avg_conc = if_else(
-        pcr_target_avg_conc == 0,
-        lod_sewage / 2,
-        pcr_target_avg_conc
-    )) |>
-
-    # Log transform the concentrations
-    mutate(pcr_target_avg_conc = log1p(pcr_target_avg_conc)) |>
-
-    # Only grab data from last 2 years
-    filter(sample_collect_date > (if_else(
-        month(max(sample_collect_date)) < 8,
-
-        # If we are before August of curr year, use last year's August 1st
-        make_date(year = year(max(sample_collect_date)) - years(1), month = 8, day = 1),
-
-        # If we are past August 1st of curr year, use this year's August 1st
-        make_date(year = year(max(sample_collect_date)), month = 8, day = 1)) - years(2)
-        )
-    ) |>
-
-    summarise(
-        # 10th percentile
-        most_recent_collection_date = max(sample_collect_date),
-        avg_conc = pcr_target_avg_conc[which.max(sample_collect_date)],
-        baseline = quantile(pcr_target_avg_conc, probs = 0.1),
-        std_dev = sd(pcr_target_avg_conc)
-    ) |>
-
-    mutate(wval = (avg_conc - baseline) / std_dev)
-
-    # TO DO: Make it the average of most recent week
+plotOutput("map")
 
 ```
 
-
 ``` {r}
-# ggplot(
-#     data = spatial
-# ) +
-#     geom_sf(
-#         aes(
-#             fill = num
-#         )
-#     ) +
-#     theme_void()
+#| context: server
+
+output$map <- renderPlot({
+
+    # Step 1 - Group data
+
+    grouped <- data_unfiltered |>
+
+        # Vermont only
+        filter(state_territory == 'vt') |>
+
+        # Group by each site
+        group_by(site, counties_served) |>
+
+        # Rename county column
+        rename(county = counties_served)   
+
+
+#grouped |> select(county, site, sample_collect_date, pcr_target_avg_conc, lod_sewage) |> filter(pcr_target_avg_conc < lod_sewage, pcr_target_avg_conc > 0)
+
+    # Step 2 - Validate data
+
+    validated <- grouped |> 
+
+        # Log transform the concentrations
+        mutate(pcr_target_avg_conc = log1p(pcr_target_avg_conc),
+        pcr_target_avg_conc_z_score = scale(pcr_target_avg_conc)) |>
+
+        # Remove outliers
+        filter(pcr_target_avg_conc_z_score <= 4)
+
+    validated
+
+    # Step 3 - Determine low levels for each site
+
+    low_levels <- validated |>
+
+        # Only grab data from last 2 years
+        filter(sample_collect_date > (if_else(
+            month(max(sample_collect_date)) < 8,
+
+            # If we are before August of curr year, use last year's August 1st
+            make_date(year = year(max(sample_collect_date)) - 1, month = 8, day = 1),
+
+            # If we are past August 1st of curr year, use this year's August 1st
+            make_date(year = year(max(sample_collect_date)), month = 8, day = 1)) - years(2)
+            )
+        ) |>
+
+        summarise(
+
+            # 10th percentile
+            baseline = quantile(pcr_target_avg_conc, probs = 0.1, na.rm = TRUE),
+
+            # Std dev of concs (using 8 weeks of data, hence 56 days)
+            std_dev = sd(pcr_target_avg_conc, na.rm = TRUE)
+
+        )
+
+        low_levels
+
+    # Step 4 // 5 - Compare current levels to baselines // Identify average and median values
+
+    wval <- validated |>
+        
+        # Find the date closest to the input date to use as the "current amount of virus"
+        summarise(
+            
+            # date of interest (DOT)
+            date_of_interest = max(sample_collect_date[sample_collect_date <= input$date]),
+
+            start_of_dot_week = floor_date(date_of_interest, "week", week_start = 7),
+
+            week_of_interest_avg_conc = mean(
+                pcr_target_avg_conc[sample_collect_date <= date_of_interest & sample_collect_date >= start_of_dot_week]
+                )
+            
+            ) |>
+
+        left_join(low_levels, by = c("county", "site")) |>
+
+        group_by(county, site) |>
+
+        summarise(wval = (week_of_interest_avg_conc - baseline) / std_dev) |>
+
+        ungroup() |>
+
+        group_by(county) |>
+
+        select(county, wval) |>
+
+        summarise(wval = median(wval)) |>
+
+        mutate(county = toupper(county)) |>
+
+        ungroup() 
+
+        # Step 6 - Categorize values based on CDC cutoffs
+
+        spatial <- geography |>
+
+        left_join(wval, by = join_by(CNTYNAME == county)) |>
+
+        mutate(
+            category = cut(
+                wval, 
+                breaks = c(
+                    0, 
+                    2.5, 
+                    5.2, 
+                    8, 
+                    11, 
+                    Inf
+                    ), 
+                labels = c(
+                    "Very Low", 
+                    "Low", 
+                    "Moderate", 
+                    "High", 
+                    "Very High"), 
+                include.lowest = TRUE
+                )
+            )
+
+            summary(wval$wval)
+
+    ggplot(
+        data = spatial
+    ) +
+        geom_sf(
+            aes(
+                fill = category
+            )
+        ) +
+        theme_void() +
+        scale_fill_manual(values = c("Very Low" = "#bfc2d9",
+            "Low" = "#969fc9",
+            "Moderate" = "#6d7db8",
+            "High" = "#425ba6",
+            "Very High" = "#153993",
+            "NA" = "#9c9c9c"))
+
+    })
+
 ```
 
