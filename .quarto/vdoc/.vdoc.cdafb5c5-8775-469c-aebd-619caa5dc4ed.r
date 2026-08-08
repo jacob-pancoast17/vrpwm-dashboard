@@ -1,13 +1,13 @@
----
-title: Dashboard
-author: Jacob Pancoast
-format:
-    dashboard:
-        nav-buttons: [linkedin, github]
-server: shiny
----
-
-```{r}
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
 #| context: setup
 #| echo: false
 pacman::p_load(tidyverse,
@@ -27,25 +27,20 @@ years <- data_unfiltered |>
     distinct() |>
     arrange(desc(year))
 
-```
+#
+#
+#
+#
+#
 
-## Row
+# Input for graph year
+selectInput("year", "Year:", choices = c(2026, 2025, 2024, 2023))
 
-### Column
+plotOutput("plot")
 
-``` {r}
-
-textOutput("state_summary")
-
-```
-
-``` {r}
-
-htmlOutput("county_summary")
-
-```
-
-``` {r}
+#
+#
+#
 #| context: server
 
 library(tidyverse)
@@ -73,11 +68,9 @@ output$plot <- renderPlot({
     )
 })
 
-```
-
-### Column
-
-``` {r}
+#
+#
+#
 
 min_date <- data_unfiltered |>
     filter(sample_collect_date == min(sample_collect_date)) |>
@@ -89,22 +82,10 @@ dateInput("date", "Date:", min = min_date)
 
 leafletOutput("map")
 
-```
-
-``` {r}
+#
+#
+#
 #| context: server
-
-selected_id <- reactiveVal("CHITTENDEN")
-
-observeEvent(input$map_shape_click, {
-    click <- input$map_shape_click
-
-    if (!(is.null(selected_id())) && selected_id() == click$id) {
-        selected_id(NULL)
-    } else {
-        selected_id(click$id)
-    }
-})
 
 filtered_data <- reactive({
     # Step 1 - Group data
@@ -257,57 +238,51 @@ output$map <- renderLeaflet({
         ) |>
 
         addPolygons(
-            layerId = ~CNTYNAME,
             fillColor = ~palette(category),
             fillOpacity = 0.8,
             color = "white",
             weight = 1,
             label = ~paste0(CNTYNAME, ": ", category),
             highlightOptions = highlightOptions(weight = 3, color = "#666", bringToFront = TRUE)
-        ) |>
-
-        addPolygons(
-            data = spatial |>
-                filter(CNTYNAME == selected_id()),
-            color = "black"
         )
 
     })
 
-output$state_summary <- renderUI({
+output$coverage <- renderText({
 
-    HTML(paste0("Vermont", "<br>",
-    "Current Median WVAL: ", round(median(filtered_data()$wval, na.rm = TRUE), digits = 2)))
+    paste0("Median WVAL: ", round(median(filtered_data()$wval, na.rm = TRUE), digits = 2))
+
+    paste0(selected_id)
     
+
 })
 
-output$county_summary <- renderUI ({
+#
+#
+#
+#
+#
 
-    selected_wval <- filtered_data() |>
-        filter(county == selected_id()) |>
-        pull(wval)
+textOutput("coverage")
 
-    if (length(selected_wval) == 0) {
-        selected_wval = NA
+#
+#
+#
+
+selected_id <- reactiveVal(NULL)
+
+observeEvent(input$map_shape_click, {
+    click <- input$map_shape_click
+
+    if (!(is.null(selected_id())) & selected_id() == click$id) {
+        selected_id(NULL)
+    } else {
+        selected_id(click$id)
     }
-
-    HTML(paste0(selected_id(), " county", "<br>",
-        "Current WVAL: ", selected_wval))
-
 })
 
-```
-
-## Row
-
-``` {r}
-
-# Input for graph year
-selectInput("year", "Year:", choices = c(2026, 2025, 2024, 2023))
-
-plotOutput("plot")
-
-```
-
-
-
+#
+#
+#
+#
+#
