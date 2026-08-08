@@ -4,6 +4,7 @@ author: Jacob Pancoast
 format:
     dashboard:
         nav-buttons: [linkedin, github]
+        theme: [default, custom.scss]
 server: shiny
 ---
 
@@ -15,10 +16,9 @@ pacman::p_load(tidyverse,
                shiny,
                leaflet)
 
-data_unfiltered <- read_csv("https://data.cdc.gov/api/v3/views/45cq-cw4i/query.csv")
+data_unfiltered <- readRDS("data/nwss.rds")
 
-geography <- st_read("https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_Boundary_BNDHASH_poly_counties_SP_v1/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson", quiet = TRUE) |>
-    st_transform(4326)
+geography <- readRDS("data/geography.rds")
 
 years <- data_unfiltered |>
     filter(state_territory == 'vt') |>
@@ -35,7 +35,7 @@ years <- data_unfiltered |>
 
 ``` {r}
 
-textOutput("state_summary")
+htmlOutput("state_summary")
 
 ```
 
@@ -192,9 +192,8 @@ filtered_data <- reactive({
 
         group_by(county) |>
 
-        select(county, wval) |>
-
-        summarise(wval = median(wval)) |>
+        summarise(wval = median(wval),
+            num_sites = n_distinct(site, na.rm = TRUE)) |>
 
         mutate(county = toupper(county)) |>
 
@@ -276,23 +275,73 @@ output$map <- renderLeaflet({
 
 output$state_summary <- renderUI({
 
-    HTML(paste0("Vermont", "<br>",
-    "Current Median WVAL: ", round(median(filtered_data()$wval, na.rm = TRUE), digits = 2)))
+    # Filter and categorize (MAKE THIS A FUNCTION)
+    median_wval <- filtered_data() |>
+        summarise(wval = round(median(wval, na.rm = TRUE), digits = 2)) |>
+        pull(wval) |>
+        cut(
+            breaks = c(
+                0, 
+                2.5, 
+                5.2, 
+                8, 
+                11, 
+                Inf
+                ), 
+            labels = c(
+                "Very Low", 
+                "Low", 
+                "Moderate", 
+                "High", 
+                "Very High"), 
+            include.lowest = TRUE
+            )
+
+    # HTML for rendering
+    HTML(paste0(
+        "<h3>", "State", "</h3>",
+        "<h2>", "Vermont", "</h2>",
+        "<h4>", input$date, "</h4>",
+        "<p>", "Current Median WVAL: ", median_wval, "</p>"
+    ))
     
 })
 
 output$county_summary <- renderUI ({
 
+    # Filter and categorize (MAKE THIS A FUNCTION)
     selected_wval <- filtered_data() |>
         filter(county == selected_id()) |>
-        pull(wval)
+        pull(wval) |>
+        cut(
+            breaks = c(
+                0, 
+                2.5, 
+                5.2, 
+                8, 
+                11, 
+                Inf
+                ), 
+            labels = c(
+                "Very Low", 
+                "Low", 
+                "Moderate", 
+                "High", 
+                "Very High"), 
+            include.lowest = TRUE
+            )
 
     if (length(selected_wval) == 0) {
         selected_wval = NA
     }
 
-    HTML(paste0(selected_id(), " county", "<br>",
-        "Current WVAL: ", selected_wval))
+    # HTML for rendering
+    HTML(paste0(
+        "<h3>", "County", "</h3>",
+        "<h2>", selected_id(), "</h2>",
+        "<h4>", input$date, "</h4>",
+        "<p>", "Current Activity: ", selected_wval, "</p>"
+        ))
 
 })
 
