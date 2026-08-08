@@ -78,14 +78,15 @@ output$plot <- renderPlot({
 ### Column
 
 ``` {r}
+# This cell contains the date input and graph 
 
 min_date <- data_unfiltered |>
-    filter(sample_collect_date == min(sample_collect_date)) |>
-    select(sample_collect_date) |>
-    distinct() |>
-    pull(sample_collect_date)
+    summarise(
+        min_date = ceiling_date(min(sample_collect_date), unit = "week"),
+    ) |>
+    pull(min_date)
 
-dateInput("date", "Date:", min = min_date)
+dateInput("date", "Date:", min = min_date, max = today())
 
 leafletOutput("map")
 
