@@ -1,8 +1,9 @@
 ---
-title: Dashboard
+title: Vermont RSV Wastewater Monitoring
 author: Jacob Pancoast
 format:
     dashboard:
+        orientation: columns
         nav-buttons: [linkedin, github]
         theme: [default, custom.scss]
 server: shiny
@@ -14,6 +15,7 @@ server: shiny
 pacman::p_load(tidyverse,
                sf,
                shiny,
+               shinyWidgets,
                leaflet)
 
 data_unfiltered <- readRDS("data/nwss.rds")
@@ -47,13 +49,9 @@ output$week <- renderUI({
 
 ```
 
-## Row {height=450px}
+## Column
 
-### Column
-
-#### Row
-
-##### Column {width=30%}
+### Row
 
 ``` {r}
 
@@ -85,8 +83,6 @@ selectInput(
 
 ```
 
-##### Column {width=70%}
-
 ``` {r}
 
 # Render text
@@ -112,15 +108,13 @@ sliderInput(
 
 ```
 
-#### Row
+### Row
 
 ``` {r}
 
 htmlOutput("state_summary")
 
 ```
-
-#### Row
 
 ``` {r}
 
@@ -158,7 +152,15 @@ output$plot <- renderPlot({
 
 ```
 
-### Column
+### Row {height=50%}
+
+``` {r}
+
+plotOutput("plot")
+
+```
+
+## Column
 
 ``` {r}
 
@@ -411,7 +413,7 @@ output$state_summary <- renderUI({
     # HTML for rendering
     HTML(paste0(
         "<h3>", "State", "</h3>",
-        "<h2>", "Vermont", "</h2>",
+        "<h2>", "VERMONT", "</h2>",
         "<h4>", selected_date(), "</h4>",
         "<p>", "Current Median WVAL: ", median_wval, "</p>"
     ))
@@ -446,28 +448,22 @@ output$county_summary <- renderUI ({
         selected_wval = NA
     }
 
+    num_sites <- filtered_data() |>
+        filter(county == selected_id()) |>
+        pull(num_sites)
+    
+    if (length(num_sites) == 0) {
+        num_sites = 0
+    }
+
     # HTML for rendering
     HTML(paste0(
         "<h3>", "County", "</h3>",
         "<h2>", selected_id(), "</h2>",
         "<h4>", selected_date(), "</h4>",
-        "<p>", "Current Activity: ", selected_wval, "</p>"
+        "<p>", "Current Activity: ", selected_wval, " (", num_sites, " sites)", "</p>"
         ))
 
 })
 
 ```
-
-## Row
-
-``` {r}
-
-# Input for graph year
-selectInput("year", "Year:", choices = c(2026, 2025, 2024, 2023))
-
-plotOutput("plot")
-
-```
-
-
-
