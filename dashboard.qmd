@@ -29,15 +29,98 @@ years <- data_unfiltered |>
 
 ```
 
-## Row
+``` {r}
+#| context: server
+
+output$year <- renderUI({
+    HTML(paste0(
+        "<h3>", "Year", "<h3>"
+    ))
+})
+
+output$week <- renderUI({
+    HTML(paste0(
+        "<h3>", "Week", "<h3>",
+        "<h5>", "ending ", selected_date(), "<h5>"
+    ))
+})
+
+```
+
+## Row {height=450px}
 
 ### Column
+
+#### Row
+
+##### Column {width=30%}
+
+``` {r}
+
+# Render text
+htmlOutput("year")
+
+# Grab the minimum date from the entire data set
+min_date <- data_unfiltered |>
+    summarise(
+        min_date = ceiling_date(min(sample_collect_date), unit = "week"),
+    ) |>
+    pull(min_date)
+
+# Grab years of data
+years <- data_unfiltered |>
+    mutate(year = year(sample_collect_date)) |>
+    distinct(year) |>
+    arrange(year) |>
+    pull(year)
+
+# Select year
+selectInput(
+    "year", 
+    "", 
+    choices = years, 
+    selected = max(years, na.rm = TRUE), 
+    width = "50%",
+    selectize = FALSE)
+
+```
+
+##### Column {width=70%}
+
+``` {r}
+
+# Render text
+htmlOutput("week")
+
+# Grab max date
+max_date <- data_unfiltered |>
+    summarise(
+        max_date = max(sample_collect_date)
+    ) |>
+    pull(max_date)
+
+# Select week
+sliderInput(
+    "week", 
+    "", 
+    min = 1, 
+    max = week(max_date) + 1,
+    value = week(max_date) + 1, 
+    step = 1,
+    width = "100%"
+    )
+
+```
+
+#### Row
 
 ``` {r}
 
 htmlOutput("state_summary")
 
 ```
+
+#### Row
 
 ``` {r}
 
@@ -78,15 +161,6 @@ output$plot <- renderPlot({
 ### Column
 
 ``` {r}
-# This cell contains the date input and graph 
-
-min_date <- data_unfiltered |>
-    summarise(
-        min_date = ceiling_date(min(sample_collect_date), unit = "week"),
-    ) |>
-    pull(min_date)
-
-dateInput("date", "Date:", min = min_date, max = today())
 
 leafletOutput("map")
 
@@ -94,6 +168,42 @@ leafletOutput("map")
 
 ``` {r}
 #| context: server
+
+selected_date <- reactive({
+
+    req(input$year, input$week)
+
+    year_beginning = make_date(
+        year = input$year,
+        month = "01",
+        day = "01"
+    )
+
+    ceiling_date(year_beginning + weeks(input$week - 1), unit = "week") - 1
+
+})
+
+observeEvent(input$year, {
+
+    max_date <- data_unfiltered |>
+        summarise(
+            max_date = max(sample_collect_date)
+        ) |>
+        pull(max_date)
+
+    max_week <- if (as.numeric(input$year) == year(max_date)) {
+        week(max_date)
+    } else {
+        52
+    }
+
+    updateSliderInput(
+        session,
+        "week",
+        max = max_week,
+        value = min(input$week, max_week)
+    )
+})
 
 selected_id <- reactiveVal("CHITTENDEN")
 
@@ -173,7 +283,7 @@ filtered_data <- reactive({
         summarise(
             
             # date of interest (DOT)
-            date_of_interest = max(sample_collect_date[sample_collect_date <= input$date]),
+            date_of_interest = max(sample_collect_date[sample_collect_date <= selected_date()]),
 
             start_of_dot_week = floor_date(date_of_interest, "week", week_start = 7),
 
@@ -302,7 +412,7 @@ output$state_summary <- renderUI({
     HTML(paste0(
         "<h3>", "State", "</h3>",
         "<h2>", "Vermont", "</h2>",
-        "<h4>", input$date, "</h4>",
+        "<h4>", selected_date(), "</h4>",
         "<p>", "Current Median WVAL: ", median_wval, "</p>"
     ))
     
@@ -340,7 +450,7 @@ output$county_summary <- renderUI ({
     HTML(paste0(
         "<h3>", "County", "</h3>",
         "<h2>", selected_id(), "</h2>",
-        "<h4>", input$date, "</h4>",
+        "<h4>", selected_date(), "</h4>",
         "<p>", "Current Activity: ", selected_wval, "</p>"
         ))
 
