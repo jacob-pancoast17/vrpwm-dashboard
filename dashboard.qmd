@@ -18,7 +18,7 @@ pacman::p_load(tidyverse,
                shinyWidgets,
                leaflet)
 
-data_unfiltered <- readRDS("data/nwss.rds")
+data_unfiltered <- readRDS("data/rsv.rds")
 
 geography <- readRDS("data/geography.rds")
 
@@ -33,6 +33,8 @@ years <- data_unfiltered |>
 
 ``` {r}
 #| context: server
+
+# HTML UIs
 
 output$year <- renderUI({
     HTML(paste0(
@@ -49,9 +51,36 @@ output$week <- renderUI({
 
 ```
 
+``` {r}
+
+# Reactive to user input
+
+selected_disease <- reactive({
+    case_when(
+        input$disease == "RSV"          ~ "rsv",
+        input$disease == "Influenza A"  ~ "flu_a"
+    )
+})
+
+```
+
 ## Column
 
 ### Row
+
+``` {r}
+
+selectInput(
+    "disease",
+    "",
+    choices = c("RSV", "Influenza A"),
+    selected = "RSV",
+    selectize = FALSE
+)
+
+#htmlOutput("disease")
+
+```
 
 ``` {r}
 
