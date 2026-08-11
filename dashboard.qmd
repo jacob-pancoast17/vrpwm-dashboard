@@ -218,7 +218,20 @@ output$heatmap <- renderPlot({
 
         ungroup() |>
 
-        left_join(filtered_data_step_4_5_for_heatmap(), by = c("county", "month"))
+        left_join(filtered_data_step_4_5_for_heatmap(), by = c("county", "month")) |>
+
+        mutate(
+            wval = factor(
+                categorize_wval(wval),
+                levels = c(
+                    "Very Low",
+                    "Low",
+                    "Moderate",
+                    "High",
+                    "Very High"
+                )
+            )
+        )
 
     # Return graph
     ggplot(
@@ -228,13 +241,31 @@ output$heatmap <- renderPlot({
         mapping = aes(
         x = month,
         y = county,
-        fill = wval
+        fill = as.factor(wval)
         )
     ) + labs(
         title = paste0(
             season_start, "-", season_start + 1,
-            " season"
-            )
+            " Season"
+            ),
+        y = "County",
+        x = "Month",
+        fill = "WVAL Classification"
+    ) +
+    scale_fill_manual(
+        values = wval_colors,
+        na.value = "#6b6969"
+    ) + theme_minimal() +
+    theme(
+        text = element_text(
+            family = "Segoe UI"
+        ),
+        plot.title = element_text(
+            hjust = 0.5,
+            face = "bold",
+            size = 1.1 * 16,
+            color = "#808080"
+        ),
     )
 })
 
@@ -385,12 +416,13 @@ filtered_data_step_4_5_for_individ <- reactive({
         summarise(
             
             # date of interest (DOT)
-            date_of_interest = max(sample_collect_date[sample_collect_date <= selected_date()]),
+            date_of_interest = max(sample_collect_date[sample_collect_date <= selected_date() & !is.na(pcr_target_avg_conc)]),
 
             start_of_dot_week = floor_date(date_of_interest, "week", week_start = 7),
 
             week_of_interest_avg_conc = mean(
-                pcr_target_avg_conc[sample_collect_date <= date_of_interest & sample_collect_date >= start_of_dot_week]
+                pcr_target_avg_conc[sample_collect_date <= date_of_interest & sample_collect_date >= start_of_dot_week], 
+                na.rm = TRUE
                 )
             
             ) |>
@@ -399,13 +431,13 @@ filtered_data_step_4_5_for_individ <- reactive({
 
         group_by(county, site) |>
 
-        summarise(wval = (week_of_interest_avg_conc - baseline) / std_dev) |>
+        summarise(wval = exp((week_of_interest_avg_conc - baseline) / std_dev)) |>
 
         ungroup() |>
 
         group_by(county) |>
 
-        summarise(wval = median(wval),
+        summarise(wval = median(wval, na.rm = TRUE),
             num_sites = n_distinct(site, na.rm = TRUE)) |>
 
         mutate(county = toupper(county)) |>
@@ -438,7 +470,7 @@ filtered_data_step_4_5_for_heatmap <- reactive({
 
         group_by(county, site, month) |>
 
-        summarise(wval = (avg_concentration - baseline) / std_dev) |>
+        summarise(wval = exp((avg_concentration - baseline) / std_dev)) |>
 
         ungroup() |>
 
@@ -451,6 +483,34 @@ filtered_data_step_4_5_for_heatmap <- reactive({
 
 })
 
+categorize_wval <- function(wval) {
+    return(
+        case_when(
+            wval > 11   ~ "Very High",
+            wval > 8    ~ "High",
+            wval > 5.2  ~ "Moderate",
+            wval > 2.5  ~ "Low",
+            wval > -Inf ~ "Very Low",
+            is.na(wval) ~ "Not available",
+            TRUE        ~ "ERROR"
+        )
+    )
+}
+
+wval_colors <- c(
+        "Very Low" = "#bfc2d9", 
+        "Low" = "#969fc9", 
+        "Moderate" = "#6d7db8", 
+        "High" = "#425ba6", 
+        "Very High" = "#153993"
+)
+
+palette <- colorFactor(
+        palette = unname(wval_colors),
+        levels = names(wval_colors),
+        na.color = "#6b6969"
+    )
+
 output$map <- renderLeaflet({
 
         # Step 6 - Categorize values based on CDC cutoffs
@@ -460,43 +520,8 @@ output$map <- renderLeaflet({
         left_join(filtered_data_step_4_5_for_individ(), by = join_by(CNTYNAME == county)) |>
 
         mutate(
-            category = cut(
-                wval, 
-                breaks = c(
-                    0, 
-                    2.5, 
-                    5.2, 
-                    8, 
-                    11, 
-                    Inf
-                    ), 
-                labels = c(
-                    "Very Low", 
-                    "Low", 
-                    "Moderate", 
-                    "High", 
-                    "Very High"), 
-                include.lowest = TRUE
-                )
+            category = categorize_wval(wval)
             )
-
-    palette <- colorFactor(
-        palette = c(
-            "#bfc2d9", 
-            "#969fc9", 
-            "#6d7db8", 
-            "#425ba6", 
-            "#153993"
-            ),
-        levels = c(
-            "Very Low", 
-            "Low", 
-            "Moderate", 
-            "High", 
-            "Very High"
-            ),
-        na.color = "#9c9c9c"
-    )
 
     leaflet(
         spatial,
@@ -529,24 +554,9 @@ output$state_summary <- renderUI({
     # Filter and categorize (MAKE THIS A FUNCTION)
     median_wval <- filtered_data_step_4_5_for_individ() |>
         summarise(wval = round(median(wval, na.rm = TRUE), digits = 2)) |>
-        pull(wval) |>
-        cut(
-            breaks = c(
-                0, 
-                2.5, 
-                5.2, 
-                8, 
-                11, 
-                Inf
-                ), 
-            labels = c(
-                "Very Low", 
-                "Low", 
-                "Moderate", 
-                "High", 
-                "Very High"), 
-            include.lowest = TRUE
-            )
+        pull(wval)
+    
+    median_wval <- categorize_wval(median_wval)
 
     # HTML for rendering
     HTML(paste0(
@@ -563,24 +573,9 @@ output$county_summary <- renderUI ({
     # Filter and categorize (MAKE THIS A FUNCTION)
     selected_wval <- filtered_data_step_4_5_for_individ() |>
         filter(county == selected_id()) |>
-        pull(wval) |>
-        cut(
-            breaks = c(
-                0, 
-                2.5, 
-                5.2, 
-                8, 
-                11, 
-                Inf
-                ), 
-            labels = c(
-                "Very Low", 
-                "Low", 
-                "Moderate", 
-                "High", 
-                "Very High"), 
-            include.lowest = TRUE
-            )
+        pull(wval)
+
+    selected_wval <- categorize_wval(selected_wval)
 
     if (length(selected_wval) == 0) {
         selected_wval = NA
