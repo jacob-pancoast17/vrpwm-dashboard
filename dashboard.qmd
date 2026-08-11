@@ -129,12 +129,35 @@ library(tidyverse)
 
 output$plot <- renderPlot({
 
-    # Filter data
+    # July of year 1 - June of year 2
+    season_start <- if (month(selected_date()) <= 6) {
+        # If we are before July of a year, starting season was the previous year
+        year(selected_date()) - 1
+    } else {
+        # Otherwise, starting season will be this year
+        year(selected_date())
+    }
+
+    # Filter data in this range
     filtered_data <- data_unfiltered |>
-    group_by(sample_collect_date) |>
-    mutate(year = year(sample_collect_date)) |>
-    filter(state_territory == 'vt') |>
-    filter(year == input$year)
+
+        # In the year range and only VT
+        filter(
+            state_territory == 'vt',
+            counties_served == lower(selected_id()),
+            sample_collect_date >= make_date(
+                year = season_start,
+                month = 7,
+                day = 1
+            ),
+            sample_collect_date <= make_date(
+                year = season_start + 1,
+                month = 6,
+                day = 30
+            )
+        ) |>
+
+        group_by(sample_collect_date)
 
     # Return graph
     ggplot(
@@ -146,7 +169,72 @@ output$plot <- renderPlot({
         y = pcr_target_avg_conc
         )
     ) + labs(
-        title = input$year
+        title = paste0(
+            season_start, "-", season_start + 1,
+            " season"
+            )
+    )
+})
+
+output$heatmap <- renderPlot({
+
+    # July of year 1 - June of year 2
+    season_start <- if (month(selected_date()) <= 6) {
+        # If we are before July of a year, starting season was the previous year
+        year(selected_date()) - 1
+    } else {
+        # Otherwise, starting season will be this year
+        year(selected_date())
+    }
+
+    # Filter data in this range
+    filtered_data <- data_unfiltered |>
+
+        # In the year range and only VT
+        filter(
+            state_territory == 'vt',
+            sample_collect_date >= make_date(
+                year = season_start,
+                month = 7,
+                day = 1
+            ),
+            sample_collect_date <= make_date(
+                year = season_start + 1,
+                month = 6,
+                day = 30
+            )
+        ) |>
+
+        mutate(
+            month = format(sample_collect_date, "%Y-%m")
+            ) |>
+
+        summarise(
+            concentration = mean(pcr_target_avg_conc, na.rm = TRUE),
+            .by = c(month, counties_served)
+        ) |>
+
+        rename(county = counties_served) |>
+
+        ungroup() |>
+
+        left_join(filtered_data_step_4_5_for_heatmap(), by = c("county", "month"))
+
+    # Return graph
+    ggplot(
+    data = filtered_data
+    ) +
+    geom_tile(
+        mapping = aes(
+        x = month,
+        y = county,
+        fill = wval
+        )
+    ) + labs(
+        title = paste0(
+            season_start, "-", season_start + 1,
+            " season"
+            )
     )
 })
 
@@ -156,7 +244,7 @@ output$plot <- renderPlot({
 
 ``` {r}
 
-plotOutput("plot")
+plotOutput("heatmap")
 
 ```
 
@@ -192,6 +280,12 @@ observeEvent(input$year, {
             max_date = max(sample_collect_date)
         ) |>
         pull(max_date)
+    
+    min_date <- data_unfiltered |>
+    summarise(
+        min_date = min(sample_collect_date)
+    ) |>
+    pull(min_date)
 
     max_week <- if (as.numeric(input$year) == year(max_date)) {
         week(max_date)
@@ -199,9 +293,16 @@ observeEvent(input$year, {
         52
     }
 
+    min_week <- if (as.numeric(input$year) == year(min_date)) {
+        week(min_date)
+    } else {
+        1
+    }
+
     updateSliderInput(
         session,
         "week",
+        min = min_week,
         max = max_week,
         value = min(input$week, max_week)
     )
@@ -219,7 +320,7 @@ observeEvent(input$map_shape_click, {
     }
 })
 
-filtered_data <- reactive({
+filtered_data_step_1_2 <- reactive({
     # Step 1 - Group data
 
     grouped <- data_unfiltered |>
@@ -233,9 +334,6 @@ filtered_data <- reactive({
         # Rename county column
         rename(county = counties_served)   
 
-
-#grouped |> select(county, site, sample_collect_date, pcr_target_avg_conc, lod_sewage) |> filter(pcr_target_avg_conc < lod_sewage, pcr_target_avg_conc > 0)
-
     # Step 2 - Validate data
 
     validated <- grouped |> 
@@ -246,12 +344,13 @@ filtered_data <- reactive({
 
         # Remove outliers
         filter(pcr_target_avg_conc_z_score <= 4)
+    
+})
 
-    validated
-
+filtered_data_step_3 <- reactive({
     # Step 3 - Determine low levels for each site
 
-    low_levels <- validated |>
+    filtered_data_step_1_2() |>
 
         # Only grab data from last 2 years
         filter(sample_collect_date > (if_else(
@@ -274,12 +373,13 @@ filtered_data <- reactive({
             std_dev = sd(pcr_target_avg_conc, na.rm = TRUE)
 
         )
+})
 
-        low_levels
+filtered_data_step_4_5_for_individ <- reactive({
 
     # Step 4 // 5 - Compare current levels to baselines // Identify average and median values
 
-    validated |>
+    filtered_data_step_1_2() |>
         
         # Find the date closest to the input date to use as the "current amount of virus"
         summarise(
@@ -295,7 +395,7 @@ filtered_data <- reactive({
             
             ) |>
 
-        left_join(low_levels, by = c("county", "site")) |>
+        left_join(filtered_data_step_3(), by = c("county", "site")) |>
 
         group_by(county, site) |>
 
@@ -313,13 +413,51 @@ filtered_data <- reactive({
         ungroup() 
 })
 
+filtered_data_step_4_5_for_heatmap <- reactive({
+
+    # Step 4 // 5 - Compare current levels to baselines // Identify average and median values
+
+    filtered_data_step_1_2() |>
+
+        ungroup() |>
+
+        mutate(
+            # all months
+            month = format(sample_collect_date, "%Y-%m")
+        ) |>
+        
+        # Find the date closest to the input date to use as the "current amount of virus"
+        summarise(
+            avg_concentration = mean(pcr_target_avg_conc, na.rm = TRUE),
+
+            .by = c(month, county, site)
+            
+            ) |>
+
+        left_join(filtered_data_step_3(), by = c("county", "site")) |>
+
+        group_by(county, site, month) |>
+
+        summarise(wval = (avg_concentration - baseline) / std_dev) |>
+
+        ungroup() |>
+
+        group_by(county, month) |>
+
+        summarise(wval = median(wval),
+            num_sites = n_distinct(site, na.rm = TRUE)) |>
+
+        ungroup()
+
+})
+
 output$map <- renderLeaflet({
 
         # Step 6 - Categorize values based on CDC cutoffs
 
         spatial <- geography |>
 
-        left_join(filtered_data(), by = join_by(CNTYNAME == county)) |>
+        left_join(filtered_data_step_4_5_for_individ(), by = join_by(CNTYNAME == county)) |>
 
         mutate(
             category = cut(
@@ -389,7 +527,7 @@ output$map <- renderLeaflet({
 output$state_summary <- renderUI({
 
     # Filter and categorize (MAKE THIS A FUNCTION)
-    median_wval <- filtered_data() |>
+    median_wval <- filtered_data_step_4_5_for_individ() |>
         summarise(wval = round(median(wval, na.rm = TRUE), digits = 2)) |>
         pull(wval) |>
         cut(
@@ -423,7 +561,7 @@ output$state_summary <- renderUI({
 output$county_summary <- renderUI ({
 
     # Filter and categorize (MAKE THIS A FUNCTION)
-    selected_wval <- filtered_data() |>
+    selected_wval <- filtered_data_step_4_5_for_individ() |>
         filter(county == selected_id()) |>
         pull(wval) |>
         cut(
@@ -448,7 +586,7 @@ output$county_summary <- renderUI ({
         selected_wval = NA
     }
 
-    num_sites <- filtered_data() |>
+    num_sites <- filtered_data_step_4_5_for_individ() |>
         filter(county == selected_id()) |>
         pull(num_sites)
     
