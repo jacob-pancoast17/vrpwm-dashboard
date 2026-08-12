@@ -168,6 +168,7 @@ observe({
     updateSliderInput(
         session,
         "week",
+        label = paste0("Week ending ", selected_date()),
         max = max_week(),
         min = min_week(),
         value = min(input$week, max_week())
@@ -189,16 +190,15 @@ observe({
 
 ## Column
 
-### Row
+### {.toolbar}
 
 ``` {r}
 
 selectInput(
     "disease",
-    "",
+    "Pathogen",
     choices = c("RSV", "Influenza A", "COVID-19"),
-    selected = "RSV",
-    selectize = FALSE
+    selected = "RSV"
 )
 
 #htmlOutput("disease")
@@ -208,33 +208,32 @@ selectInput(
 ``` {r}
 
 # Render text
-htmlOutput("year")
+#htmlOutput("year")
 
 # Select year
 selectInput(
     "year", 
-    "", 
+    "Year", 
     choices = 0, # PLACEHOLDER DURING INIT
-    selected = 0, # PLACEHOLDER DURING INIT
-    width = "50%",
-    selectize = FALSE)
+    selected = 0 # PLACEHOLDER DURING INIT
+    )
 
 ```
 
 ``` {r}
 
 # Render text
-htmlOutput("week")
+#htmlOutput("week")
 
 # Select week
 sliderInput(
     "week", 
-    "", 
+    "Week ending", 
     min = 1, 
     max = 52, # PLACEHOLDER DURING INIT
     value = 52, # PLACEHOLDER DURING INIT
     step = 1,
-    width = "100%"
+    ticks = FALSE
     )
 
 ```
