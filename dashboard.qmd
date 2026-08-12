@@ -1,5 +1,5 @@
 ---
-title: Vermont RSV Wastewater Monitoring
+title: Vermont Wastewater Monitoring
 author: Jacob Pancoast
 format:
     dashboard:
@@ -66,13 +66,33 @@ selected_data <- reactive({
 
 })
 
-years_of_data <- reactive({
+seasons_of_data <- reactive({
 
     selected_data() |>
         filter(state_territory == 'vt') |>
-        distinct(year = year(sample_collect_date)) |>
-        arrange(desc(year)) |>
-        pull(year)
+        mutate(
+            year = year(sample_collect_date),
+            season_start = if_else(
+                month(sample_collect_date) <= 6,
+                year - 1,
+                year
+            ),
+            season = paste0(season_start, "-", season_start + 1)
+        ) |>
+        distinct(season) |>
+        pull(season)
+
+})
+
+selected_y1 <- reactive({
+
+    strsplit(input$season, "-")[[1]][1]
+
+})
+
+selected_y2 <- reactive({
+
+    strsplit(input$season, "-")[[1]][2]
 
 })
 
@@ -100,9 +120,16 @@ max_date <- reactive({
 
 min_week <- reactive({
 
-    # If selected year is the first one in the data, use that number of weeks
-    min_week <- if (as.numeric(input$year) == year(min_date())) {
-        week(min_date())
+    # If selected season is the first one in the data, use that number of weeks
+    min_week <- if (input$season == min(seasons_of_data())) {
+        as.numeric((ceiling_date(
+            make_date(
+                year = year(min_date()),
+                month = 7,
+                day = 1
+                ),
+                "week"
+            ) - min_date()) / 7)
         } else { # Otherwise we are in a year that has a beginning so just use 1
             1
             }
@@ -111,9 +138,19 @@ min_week <- reactive({
 
 max_week <- reactive({
 
+    req(selected_y1(), selected_y2())
+
     # If selected year is the current, unfinished year, use that number of weeks
-    if (as.numeric(input$year) == year(max_date())) {
-        week(max_date())
+    if (input$season == max(seasons_of_data()))
+    {
+        as.numeric(ceiling((max_date() - ceiling_date(
+            make_date(
+                year = selected_y1(),
+                month = 7,
+                day = 1
+            ),
+            "week"
+        )) / 7))
         } else { # Otherwise use 52 weeks for a past full year
             52
             }
@@ -165,6 +202,9 @@ palette <- reactive({
 
 # Update sliders when data changes
 observe({
+
+    req(input$season, input$season != 0)
+    
     updateSliderInput(
         session,
         "week",
@@ -174,16 +214,17 @@ observe({
         value = min(input$week, max_week())
         )
 
+})
+
+observe({
+
     updateSelectInput(
         session,
-        "year",
-        choices = years_of_data(), 
-        selected = if_else(
-            input$year %in% years_of_data(),
-            as.numeric(input$year),
-            max(years_of_data())
+        "season",
+        choices = seasons_of_data(), 
+        selected = if (input$season %in% seasons_of_data()) input$season else max(seasons_of_data())
         )
-    )
+
 })
 
 ```
@@ -212,8 +253,8 @@ selectInput(
 
 # Select year
 selectInput(
-    "year", 
-    "Year", 
+    "season", 
+    "Season", 
     choices = 0, # PLACEHOLDER DURING INIT
     selected = 0 # PLACEHOLDER DURING INIT
     )
@@ -308,14 +349,7 @@ output$plot <- renderPlot({
 
 output$heatmap <- renderPlot({
 
-    # July of year 1 - June of year 2
-    season_start <- if (month(selected_date()) <= 6) {
-        # If we are before July of a year, starting season was the previous year
-        year(selected_date()) - 1
-    } else {
-        # Otherwise, starting season will be this year
-        year(selected_date())
-    }
+    season_start <- selected_y1()
 
     # Filter data in this range
     filtered_data <- selected_data() |>
@@ -324,12 +358,12 @@ output$heatmap <- renderPlot({
         filter(
             state_territory == 'vt',
             sample_collect_date >= make_date(
-                year = season_start,
+                year = selected_y1(),
                 month = 7,
                 day = 1
             ),
             sample_collect_date <= make_date(
-                year = season_start + 1,
+                year = selected_y2(),
                 month = 6,
                 day = 30
             )
@@ -375,7 +409,7 @@ output$heatmap <- renderPlot({
         )
     ) + labs(
         title = paste0(
-            season_start, "-", season_start + 1,
+            input$season,
             " Season"
             ),
         y = "County",
@@ -422,15 +456,15 @@ leafletOutput("map")
 
 selected_date <- reactive({
 
-    req(input$year, input$week)
+    req(input$season, input$week)
 
-    year_beginning = make_date(
-        year = input$year,
-        month = "01",
-        day = "01"
+    season_beginning = make_date(
+        year = selected_y1(),
+        month = 7,
+        day = 1
     )
 
-    ceiling_date(year_beginning + weeks(input$week - 1), unit = "week") - 1
+    ceiling_date(season_beginning + weeks(input$week - 1), unit = "week") - 1
 
 })
 
