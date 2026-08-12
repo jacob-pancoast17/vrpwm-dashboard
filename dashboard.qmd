@@ -18,16 +18,10 @@ pacman::p_load(tidyverse,
                shinyWidgets,
                leaflet)
 
-data_unfiltered <- readRDS("data/rsv.rds")
+rsv <- readRDS("data/rsv.rds")
+flu_a <- readRDS("data/flu_a.rds")
 
 geography <- readRDS("data/geography.rds")
-
-years <- data_unfiltered |>
-    filter(state_territory == 'vt') |>
-    mutate(year = year(sample_collect_date)) |>
-    select(year) |>
-    distinct() |>
-    arrange(desc(year))
 
 ```
 
@@ -38,27 +32,113 @@ years <- data_unfiltered |>
 
 output$year <- renderUI({
     HTML(paste0(
-        "<h3>", "Year", "<h3>"
+        "<h3>", "Year", "</h3>"
     ))
 })
 
 output$week <- renderUI({
     HTML(paste0(
-        "<h3>", "Week", "<h3>",
-        "<h5>", "ending ", selected_date(), "<h5>"
+        "<h3>", "Week", "</h3>",
+        "<h5>", "ending ", selected_date(), "</h5>"
     ))
 })
 
 ```
 
 ``` {r}
+#| context: server
 
 # Reactive to user input
 
-selected_disease <- reactive({
-    case_when(
-        input$disease == "RSV"          ~ "rsv",
-        input$disease == "Influenza A"  ~ "flu_a"
+selected_data <- reactive({
+
+    req(input$disease)
+
+    switch(
+        input$disease,
+        "RSV" = rsv,
+        "Influenza A" = flu_a
+    )
+
+})
+
+years_of_data <- reactive({
+
+    selected_data() |>
+        filter(state_territory == 'vt') |>
+        distinct(year = year(sample_collect_date)) |>
+        arrange(desc(year)) |>
+        pull(year)
+
+})
+
+min_date <- reactive({
+
+    # Grab the minimum date from the entire data set
+    selected_data() |>
+        summarise(
+            min_date = ceiling_date(min(sample_collect_date), unit = "week"),
+        ) |>
+        pull(min_date)
+
+})
+
+max_date <- reactive({
+
+    # Grab max date
+    selected_data() |>
+        summarise(
+            max_date = max(sample_collect_date)
+        ) |>
+        pull(max_date)
+
+})
+
+min_week <- reactive({
+
+    # If selected year is the first one in the data, use that number of weeks
+    min_week <- if (as.numeric(input$year) == year(min_date())) {
+        week(min_date())
+        } else { # Otherwise we are in a year that has a beginning so just use 1
+            1
+            }
+
+})
+
+max_week <- reactive({
+
+    # If selected year is the current, unfinished year, use that number of weeks
+    if (as.numeric(input$year) == year(max_date())) {
+        week(max_date())
+        } else { # Otherwise use 52 weeks for a past full year
+            52
+            }
+})
+
+```
+
+``` {r}
+#| context: server
+
+# Update sliders when data changes
+observe({
+    updateSliderInput(
+        session,
+        "week",
+        max = max_week(),
+        min = min_week(),
+        value = min(input$week, max_week())
+        )
+
+    updateSelectInput(
+        session,
+        "year",
+        choices = years_of_data(), 
+        selected = if_else(
+            input$year %in% years_of_data(),
+            as.numeric(input$year),
+            max(years_of_data())
+        )
     )
 })
 
@@ -87,26 +167,12 @@ selectInput(
 # Render text
 htmlOutput("year")
 
-# Grab the minimum date from the entire data set
-min_date <- data_unfiltered |>
-    summarise(
-        min_date = ceiling_date(min(sample_collect_date), unit = "week"),
-    ) |>
-    pull(min_date)
-
-# Grab years of data
-years <- data_unfiltered |>
-    mutate(year = year(sample_collect_date)) |>
-    distinct(year) |>
-    arrange(year) |>
-    pull(year)
-
 # Select year
 selectInput(
     "year", 
     "", 
-    choices = years, 
-    selected = max(years, na.rm = TRUE), 
+    choices = 0, # PLACEHOLDER DURING INIT
+    selected = 0, # PLACEHOLDER DURING INIT
     width = "50%",
     selectize = FALSE)
 
@@ -117,20 +183,13 @@ selectInput(
 # Render text
 htmlOutput("week")
 
-# Grab max date
-max_date <- data_unfiltered |>
-    summarise(
-        max_date = max(sample_collect_date)
-    ) |>
-    pull(max_date)
-
 # Select week
 sliderInput(
     "week", 
     "", 
     min = 1, 
-    max = week(max_date) + 1,
-    value = week(max_date) + 1, 
+    max = 52, # PLACEHOLDER DURING INIT
+    value = 52, # PLACEHOLDER DURING INIT
     step = 1,
     width = "100%"
     )
@@ -168,7 +227,7 @@ output$plot <- renderPlot({
     }
 
     # Filter data in this range
-    filtered_data <- data_unfiltered |>
+    filtered_data <- selected_data() |>
 
         # In the year range and only VT
         filter(
@@ -217,7 +276,7 @@ output$heatmap <- renderPlot({
     }
 
     # Filter data in this range
-    filtered_data <- data_unfiltered |>
+    filtered_data <- selected_data() |>
 
         # In the year range and only VT
         filter(
@@ -333,41 +392,6 @@ selected_date <- reactive({
 
 })
 
-observeEvent(input$year, {
-
-    max_date <- data_unfiltered |>
-        summarise(
-            max_date = max(sample_collect_date)
-        ) |>
-        pull(max_date)
-    
-    min_date <- data_unfiltered |>
-    summarise(
-        min_date = min(sample_collect_date)
-    ) |>
-    pull(min_date)
-
-    max_week <- if (as.numeric(input$year) == year(max_date)) {
-        week(max_date)
-    } else {
-        52
-    }
-
-    min_week <- if (as.numeric(input$year) == year(min_date)) {
-        week(min_date)
-    } else {
-        1
-    }
-
-    updateSliderInput(
-        session,
-        "week",
-        min = min_week,
-        max = max_week,
-        value = min(input$week, max_week)
-    )
-})
-
 selected_id <- reactiveVal("CHITTENDEN")
 
 observeEvent(input$map_shape_click, {
@@ -383,7 +407,7 @@ observeEvent(input$map_shape_click, {
 filtered_data_step_1_2 <- reactive({
     # Step 1 - Group data
 
-    grouped <- data_unfiltered |>
+    grouped <- selected_data() |>
 
         # Vermont only
         filter(state_territory == 'vt') |>
