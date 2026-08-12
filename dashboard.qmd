@@ -20,6 +20,9 @@ pacman::p_load(tidyverse,
 
 rsv <- readRDS("data/rsv.rds")
 flu_a <- readRDS("data/flu_a.rds")
+covid <- readRDS("data/covid.rds")
+measles <- readRDS("data/measles.rds")
+mpox <- readRDS("data/mpox.rds")
 
 geography <- readRDS("data/geography.rds")
 
@@ -57,7 +60,8 @@ selected_data <- reactive({
     switch(
         input$disease,
         "RSV" = rsv,
-        "Influenza A" = flu_a
+        "Influenza A" = flu_a,
+        "COVID-19" = covid
     )
 
 })
@@ -115,6 +119,45 @@ max_week <- reactive({
             }
 })
 
+wval_colors <- reactive({
+
+    switch(
+        input$disease,
+        "RSV" = {
+            c("Very Low" = "#d3ead2", 
+            "Low" = "#a4c4a3", 
+            "Moderate" = "#789f75", 
+            "High" = "#4c7c49", 
+            "Very High" = "#20591d")
+        },
+        "Influenza A" = {
+            c("Very Low" = "#bfc2d9", 
+            "Low" = "#969fc9", 
+            "Moderate" = "#6d7db8", 
+            "High" = "#425ba6", 
+            "Very High" = "#153993")
+        },
+        "COVID-19" = {
+            c("Very Low" = "#ead2d5", 
+            "Low" = "#bd9da1", 
+            "Moderate" = "#906b6f", 
+            "High" = "#663c40", 
+            "Very High" = "#3c1016")
+        }
+    )
+
+})
+
+palette <- reactive({
+
+    colorFactor(
+        palette = unname(wval_colors()),
+        levels = names(wval_colors()),
+        na.color = "#6b6969"
+    )
+
+})
+
 ```
 
 ``` {r}
@@ -153,7 +196,7 @@ observe({
 selectInput(
     "disease",
     "",
-    choices = c("RSV", "Influenza A"),
+    choices = c("RSV", "Influenza A", "COVID-19"),
     selected = "RSV",
     selectize = FALSE
 )
@@ -341,7 +384,7 @@ output$heatmap <- renderPlot({
         fill = "WVAL Classification"
     ) +
     scale_fill_manual(
-        values = wval_colors,
+        values = wval_colors(),
         na.value = "#6b6969"
     ) + theme_minimal() +
     theme(
@@ -550,20 +593,6 @@ categorize_wval <- function(wval) {
     )
 }
 
-wval_colors <- c(
-        "Very Low" = "#bfc2d9", 
-        "Low" = "#969fc9", 
-        "Moderate" = "#6d7db8", 
-        "High" = "#425ba6", 
-        "Very High" = "#153993"
-)
-
-palette <- colorFactor(
-        palette = unname(wval_colors),
-        levels = names(wval_colors),
-        na.color = "#6b6969"
-    )
-
 output$map <- renderLeaflet({
 
         # Step 6 - Categorize values based on CDC cutoffs
@@ -586,7 +615,7 @@ output$map <- renderLeaflet({
 
         addPolygons(
             layerId = ~CNTYNAME,
-            fillColor = ~palette(category),
+            fillColor = ~palette()(category),
             fillOpacity = 0.8,
             color = "white",
             weight = 1,
@@ -616,7 +645,7 @@ output$state_summary <- renderUI({
         "<h3>", "State", "</h3>",
         "<h2>", "VERMONT", "</h2>",
         "<h4>", selected_date(), "</h4>",
-        "<p>", "Current Median WVAL: ", median_wval, "</p>"
+        "<p>", "Median WVAL: ", median_wval, "</p>"
     ))
     
 })
@@ -647,7 +676,7 @@ output$county_summary <- renderUI ({
         "<h3>", "County", "</h3>",
         "<h2>", selected_id(), "</h2>",
         "<h4>", selected_date(), "</h4>",
-        "<p>", "Current Activity: ", selected_wval, " (", num_sites, " sites)", "</p>"
+        "<p>", "Activity: ", selected_wval, " (", num_sites, " sites)", "</p>"
         ))
 
 })
