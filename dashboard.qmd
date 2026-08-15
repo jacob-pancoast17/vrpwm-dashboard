@@ -79,7 +79,8 @@ seasons_of_data <- reactive({
             ),
             season = paste0(season_start, "-", season_start + 1)
         ) |>
-        distinct(season) |>
+        distinct(season, season_start) |>
+        arrange(desc(season_start)) |>
         pull(season)
 
 })
@@ -256,7 +257,8 @@ selectInput(
     "season", 
     "Season", 
     choices = 0, # PLACEHOLDER DURING INIT
-    selected = 0 # PLACEHOLDER DURING INIT
+    selected = 0, # PLACEHOLDER DURING INIT
+    selectize = FALSE
     )
 
 ```
@@ -279,7 +281,7 @@ sliderInput(
 
 ```
 
-### Row
+### Row 
 
 ``` {r}
 
@@ -435,7 +437,7 @@ output$heatmap <- renderPlot({
 
 ```
 
-### Row {height=50%}
+### Row {height=65%}
 
 ``` {r}
 
