@@ -18,8 +18,6 @@ theme <- bs_theme(version = 5, primary = "#237a21") |>
 rsv <- readRDS("data/rsv.rds")
 flu_a <- readRDS("data/flu_a.rds")
 covid <- readRDS("data/covid.rds")
-measles <- readRDS("data/measles.rds")
-mpox <- readRDS("data/mpox.rds")
 
 geography <- readRDS("data/geography.rds")
 
@@ -105,7 +103,6 @@ server <- function(input, output, session) {
     seasons_of_data <- reactive({
 
         selected_data() |>
-            filter(state_territory == 'vt') |>
             mutate(
                 year = year(sample_collect_date),
                 season_start = if_else(
@@ -256,9 +253,6 @@ server <- function(input, output, session) {
         # Step 1 - Group data
 
         grouped <- selected_data() |>
-
-            # Vermont only
-            filter(state_territory == 'vt') |>
 
             # Group by each site
             group_by(site, counties_served) |>
@@ -441,9 +435,8 @@ server <- function(input, output, session) {
         # Filter data in this range
         filtered_data <- selected_data() |>
 
-            # In the year range and only VT
+            # In the year range
             filter(
-                state_territory == 'vt',
                 sample_collect_date >= make_date(
                     year = selected_y1(),
                     month = 7,
