@@ -26,6 +26,7 @@ jobs:
             any::readr
             any::dplyr
             any::sf
+            any::pacman
 
       # Run script
       - name: Fetch data
