@@ -56,8 +56,7 @@ jobs:
               secret = Sys.getenv("SHINY_SECRET")
             )
             rsconnect::deployApp(
-              appName = "VRPWM Dashboard",
-              forceUpdate = TRUE
+              'app.R'
             )
           '
       
