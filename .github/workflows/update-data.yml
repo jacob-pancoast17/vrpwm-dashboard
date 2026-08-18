@@ -45,9 +45,9 @@ jobs:
 
       - name: Deploy app to shiny apps
         env:
-          SHINY_ACCOUNT:
-          SHINY_TOKEN:
-          SHINY_SECRET:
+          SHINY_ACCOUNT: ${{ secrets.SHINY_ACCOUNT }}
+          SHINY_TOKEN: ${{ secrets.SHINY_TOKEN }}
+          SHINY_SECRET: ${{ secrets.SHINY_SECRET }}
         run: |
           Rscript -e '
             rsconnect::setAccountInfo(
