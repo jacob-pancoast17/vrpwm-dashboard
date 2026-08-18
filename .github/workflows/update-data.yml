@@ -61,7 +61,7 @@ jobs:
             )
             rsconnect::deployApp(
               appName = "vrpwm-dashboard",
-              appFiles = c("app.R", "custom.scss", "data")
+              appFiles = c("app.R", "custom.scss", "data"),
               forceUpdate = TRUE
             )
           '
