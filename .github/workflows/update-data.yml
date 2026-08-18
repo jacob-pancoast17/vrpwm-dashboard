@@ -27,7 +27,6 @@ jobs:
             any::dplyr
             any::sf
             any::pacman
-            any::quarto
             any::shiny
 
       # Run script
