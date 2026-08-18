@@ -23,7 +23,7 @@ geography <- readRDS("data/geography.rds")
 
 ui <- page_sidebar(
     theme = theme,
-    title = "Vermont Wastewater Monitoring",
+    title = span("Vermont Respiratory Pathogens Wastewater Monitoring", style = "background-color: #237a21; color: white;"),
     sidebar = sidebar(
         # Select pathogen
         selectInput(
