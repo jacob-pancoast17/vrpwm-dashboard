@@ -28,6 +28,7 @@ jobs:
             any::sf
             any::pacman
             any::shiny
+            any::rsconnect
 
       # Run script
       - name: Fetch data
