@@ -1,0 +1,63 @@
+name: Update CDC Data Weekly
+
+on:
+  schedule:
+  # Runs every week on Saturday at midnight, after the CDC has published NWSS data
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out repo code
+      - name: Check out
+        uses: actions/checkout@v4
+        
+      - name: Set up environment
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Set up dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::readr
+            any::dplyr
+            any::sf
+            any::pacman
+            any::quarto
+            any::shiny
+
+      # Run script
+      - name: Fetch data
+        run: Rscript data/fetch.R
+
+      # Commit only if the data actually changed
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/*.rds
+          git diff --staged --quiet || git commit -m "Update CDC data $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Deploy app to shiny apps
+        env:
+          SHINY_ACCOUNT:
+          SHINY_TOKEN:
+          SHINY_SECRET:
+        run: |
+          Rscript -e '
+            rsconnect::setAccountInfo(
+              name = Sys.getenv("SHINY_ACCOUNT"),
+              token = Sys.getenv("SHINY_TOKEN"),
+              secret = Sys.getenv("SHINY_SECRET")
+            )
+            rsconnect::deployApp(
+              appName = "VRPWM Dashboard",
+              forceUpdate = TRUE
+            )
+          '
+      
