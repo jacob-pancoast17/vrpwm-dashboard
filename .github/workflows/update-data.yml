@@ -29,6 +29,10 @@ jobs:
             any::pacman
             any::shiny
             any::rsconnect
+            any::leaflet
+            any::rmarkdown
+            any::shinyWidgets
+            any::tidyverse
 
       # Run script
       - name: Fetch data
@@ -57,6 +61,7 @@ jobs:
             )
             rsconnect::deployApp(
               appName = "vrpwm-dashboard",
+              appFiles = c("app.R", "custom.scss", "data")
               forceUpdate = TRUE
             )
           '
