@@ -72,11 +72,7 @@ jobs:
               appDir = ".",
               appPrimaryDoc = NULL,
               appFiles = list.files(".", recursive = TRUE),
-              appMode = "shiny",
-              users = NULL,
-              metadata = list(
-                repo = "https://cloud.r-project.org"
-              )
+              appMode = "shiny"
             )
 
             rsconnect::setAccountInfo(
