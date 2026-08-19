@@ -1,4 +1,6 @@
-pacman::p_load(readr, sf, dplyr)
+library(readr)
+library(sf)
+library(tidyverse)
 
 dir.create("data")
 
