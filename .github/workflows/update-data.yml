@@ -24,14 +24,11 @@ jobs:
         with:
           packages: |
             any::readr
-            raster@3.6-26
-            terra@1.7.78
             any::dplyr
             any::sf
             any::pacman
             any::shiny
             any::rsconnect
-            any::leaflet
             any::rmarkdown
             any::shinyWidgets
             any::tidyverse
