@@ -54,6 +54,7 @@ jobs:
           SHINY_SECRET: ${{ secrets.SHINY_SECRET }}
         run: |
           Rscript -e '
+            options(repos = c(CRAN = "https://cloud.r-project.org"))
             rsconnect::setAccountInfo(
               name = Sys.getenv("SHINY_ACCOUNT"),
               token = Sys.getenv("SHINY_TOKEN"),
