@@ -33,6 +33,8 @@ jobs:
             any::rmarkdown
             any::shinyWidgets
             any::tidyverse
+            any::cpp11
+            any::progress
 
       # Run script
       - name: Fetch data
