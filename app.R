@@ -2,7 +2,6 @@ library(tidyverse)
 library(sf)
 library(shiny)
 library(shinyWidgets)
-library(leaflet)
 library(bslib)
 
 theme <- bs_theme(version = 5, primary = "#237a21") |>
@@ -60,7 +59,7 @@ ui <- page_sidebar(
             ),
             card(plotOutput("heatmap"))
         ),
-        card(leafletOutput("map"))
+        card(plotOutput("map", click = "map_click"))
     )
 )
 
@@ -235,16 +234,6 @@ server <- function(input, output, session) {
 
     })
 
-    palette <- reactive({
-
-        colorFactor(
-            palette = unname(wval_colors()),
-            levels = names(wval_colors()),
-            na.color = "#6b6969"
-        )
-
-    })
-
     #####################################################
     # Data pipeline (from CDC)
     #####################################################
@@ -411,13 +400,13 @@ server <- function(input, output, session) {
     })
 
     # Update map on click
-    observeEvent(input$map_shape_click, {
-        click <- input$map_shape_click
+    observeEvent(input$map_click, {
+        pt <- sf::st_sfc(sf::st_point(c(input$map_click$x, input$map_click$y)),
+                        crs = sf::st_crs(geography))
+        hit <- geography$CNTYNAME[lengths(sf::st_intersects(geography, pt)) > 0]
 
-        if (!(is.null(selected_id())) && selected_id() == click$id) {
-            selected_id(NULL)
-        } else {
-            selected_id(click$id)
+        if (length(hit) == 1) {
+            if (!is.null(selected_id()) && selected_id() == hit) selected_id(NULL) else selected_id(hit)
         }
     })
 
@@ -515,7 +504,7 @@ server <- function(input, output, session) {
     })
 
     # Vermont counties map
-    output$map <- renderLeaflet({
+    output$map <- renderPlot({
 
         # Step 6 - Categorize values based on CDC cutoffs
 
@@ -527,29 +516,34 @@ server <- function(input, output, session) {
             category = categorize_wval(wval)
             )
 
-    leaflet(
-        spatial,
-        options = leafletOptions(
-            scrollWheelZoom = FALSE,
-            zoomControl = FALSE
+    map <- ggplot(spatial) +
+        geom_sf(
+            aes(
+                fill = category,
+            ),
+            color = 'white',
+            linewidth = 0.3
+        ) +
+        scale_fill_manual(
+            values = wval_colors(),
+            na.value = "#6b6969",
+            name = "Activity Level",
+            drop = FALSE
+        ) +
+        theme_void()
+
+    if (!is.null(selected_id())) {
+        map <- map + 
+            geom_sf(
+                data = spatial |>
+                    filter(CNTYNAME == selected_id()),
+                    fill = NA,
+                    color = 'black',
+                    linewidth = 1
             )
-        ) |>
+    }
 
-        addPolygons(
-            layerId = ~CNTYNAME,
-            fillColor = ~palette()(category),
-            fillOpacity = 0.8,
-            color = "white",
-            weight = 1,
-            label = ~paste0(CNTYNAME, ": ", category),
-            highlightOptions = highlightOptions(weight = 3, color = "#666", bringToFront = TRUE)
-        ) |>
-
-        addPolygons(
-            data = spatial |>
-                filter(CNTYNAME == selected_id()),
-            color = "black"
-        )
+    map
 
     })
 
