@@ -54,6 +54,7 @@ jobs:
           SHINY_ACCOUNT: ${{ secrets.SHINY_ACCOUNT }}
           SHINY_TOKEN: ${{ secrets.SHINY_TOKEN }}
           SHINY_SECRET: ${{ secrets.SHINY_SECRET }}
+          RSPM: ""
         run: |
           Rscript -e '
             options(repos = c(CRAN = "https://cloud.r-project.org"))
