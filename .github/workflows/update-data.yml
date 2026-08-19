@@ -23,7 +23,7 @@ jobs:
           packages: |
             any::readr
             any::dplyr
-            any::sf
+            sf@1.0-19
             any::shiny
             any::rsconnect
             any::rmarkdown
