@@ -24,15 +24,25 @@ jobs:
             libgeos-dev \
             libproj-dev \
             libudunits2-dev
-
-      - name: Install R packages (force CRAN)
+      
+      - name: Set up dependencies
         env:
           RSPM: ""
           R_REPOSITORIES: https://cloud.r-project.org
-        run: |
-          Rscript -e 'options(repos = c(CRAN="https://cloud.r-project.org")); install.packages(c(
-            "readr","dplyr","sf","shiny","rsconnect","rmarkdown","shinyWidgets","tidyverse","cpp11","progress"
-          ))'
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          use-public-rspm: false
+          packages: |
+            any::readr
+            any::dplyr
+            any::sf
+            any::shiny
+            any::rsconnect
+            any::rmarkdown
+            any::shinyWidgets
+            any::tidyverse
+            any::cpp11
+            any::progress
 
       - name: Fetch data
         run: Rscript data/fetch.R
