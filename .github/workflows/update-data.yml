@@ -24,11 +24,19 @@ jobs:
         with:
           packages: |
             any::readr
+            raster@3.6-26
+            terra@1.7.78
             any::dplyr
             any::sf
             any::pacman
-            any::quarto
             any::shiny
+            any::rsconnect
+            any::leaflet
+            any::rmarkdown
+            any::shinyWidgets
+            any::tidyverse
+            any::cpp11
+            any::progress
 
       # Run script
       - name: Fetch data
@@ -45,9 +53,9 @@ jobs:
 
       - name: Deploy app to shiny apps
         env:
-          SHINY_ACCOUNT:
-          SHINY_TOKEN:
-          SHINY_SECRET:
+          SHINY_ACCOUNT: ${{ secrets.SHINY_ACCOUNT }}
+          SHINY_TOKEN: ${{ secrets.SHINY_TOKEN }}
+          SHINY_SECRET: ${{ secrets.SHINY_SECRET }}
         run: |
           Rscript -e '
             rsconnect::setAccountInfo(
@@ -56,7 +64,8 @@ jobs:
               secret = Sys.getenv("SHINY_SECRET")
             )
             rsconnect::deployApp(
-              appName = "VRPWM Dashboard",
+              appName = "vrpwm-dashboard",
+              appFiles = c("app.R", "custom.scss", "data"),
               forceUpdate = TRUE
             )
           '
