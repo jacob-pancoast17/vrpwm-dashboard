@@ -24,6 +24,7 @@ jobs:
         with:
           packages: |
             any::readr
+            terra@1.7.78
             any::dplyr
             any::sf
             any::pacman
