@@ -2,24 +2,36 @@ name: Update CDC Data Weekly
 
 on:
   schedule:
-  # Runs every week on Saturday at midnight, after the CDC has published NWSS data
     - cron: "0 0 * * 6"
   workflow_dispatch:
 
 jobs:
   fetch:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+
     steps:
-      # Check out repo code
-      - name: Check out
+      - name: Check out repo
         uses: actions/checkout@v4
-        
-      - name: Set up environment
+
+      - name: Set up R
         uses: r-lib/actions/setup-r@v2
 
+      - name: Install system dependencies for sf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgdal-dev \
+            libgeos-dev \
+            libproj-dev \
+            libudunits2-dev
+      
       - name: Set up dependencies
+        env:
+          RSPM: ""
+          R_REPOSITORIES: https://cloud.r-project.org
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          use-public-rspm: false
           packages: |
             any::readr
             any::dplyr
@@ -32,11 +44,9 @@ jobs:
             any::cpp11
             any::progress
 
-      # Run script
       - name: Fetch data
         run: Rscript data/fetch.R
 
-      # Commit only if the data actually changed
       - name: Commit if changed
         run: |
           git config user.name  "github-actions[bot]"
@@ -45,23 +55,35 @@ jobs:
           git diff --staged --quiet || git commit -m "Update CDC data $(date -u +%Y-%m-%d)"
           git push
 
-      - name: Deploy app to shiny apps
+      - name: Deploy app to shinyapps.io
         env:
           SHINY_ACCOUNT: ${{ secrets.SHINY_ACCOUNT }}
           SHINY_TOKEN: ${{ secrets.SHINY_TOKEN }}
           SHINY_SECRET: ${{ secrets.SHINY_SECRET }}
+          RSPM: ""
         run: |
           Rscript -e '
-            options(repos = c(CRAN = "https://cloud.r-project.org"))
+            # Force CRAN everywhere
+            options(repos = c(CRAN="https://cloud.r-project.org"))
+            Sys.setenv(RSPM = "")
+
+            # Override rsconnect’s internal repo logic
+            rsconnect::writeManifest(
+              appDir = ".",
+              appPrimaryDoc = NULL,
+              appFiles = list.files(".", recursive = TRUE),
+              appMode = "shiny"
+            )
+
             rsconnect::setAccountInfo(
               name = Sys.getenv("SHINY_ACCOUNT"),
               token = Sys.getenv("SHINY_TOKEN"),
               secret = Sys.getenv("SHINY_SECRET")
             )
+
             rsconnect::deployApp(
+              appDir = ".",
               appName = "vrpwm-dashboard",
-              appFiles = c("app.R", "custom.scss", "data"),
               forceUpdate = TRUE
             )
           '
-      
