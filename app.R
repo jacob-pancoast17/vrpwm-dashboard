@@ -3,6 +3,7 @@ library(sf)
 library(shiny)
 library(shinyWidgets)
 library(bslib)
+library(bsicons)
 
 theme <- bs_theme(version = 5, primary = "#237a21") |>
   bs_add_variables(
@@ -22,8 +23,16 @@ geography <- readRDS("data/geography.rds")
 
 ui <- page_sidebar(
     theme = theme,
-    title = span("Vermont Respiratory Pathogens Wastewater Monitoring", style = "background-color: #237a21; color: white;"),
+    title = span(h1("Vermont Respiratory Pathogens Wastewater Monitoring Dashboard"), style = "color: #106314; font-weight: bold"),
     sidebar = sidebar(
+        h4("Last updated 8/22/2026",
+          popover(
+            bs_icon(
+              "question-circle"
+            ),
+            title = "Data Fetching",
+            span("The CDC updates their timeline of wastewater sample data for select pathogens every Friday evening. Every Saturday, this website is updated to reflect the latest data.")
+        )),
         # Select pathogen
         selectInput(
             "disease",
@@ -48,7 +57,20 @@ ui <- page_sidebar(
             value = 52, # PLACEHOLDER DURING INIT
             step = 1,
             ticks = FALSE
-            )
+            ),
+        h4("Learn more about the data pipeline",
+          popover(
+              bs_icon(
+                  "question-circle"
+              ),
+              title = "Data Pipeline",
+              span("For participating NWSS sites across each county, wastewater viral activity levels (WVALs) are calculated following the standard WVAL calculation protocol outlined at https://www.cdc.gov/wastewater/about/wval.html.",
+                   br(),
+                   br(),
+                   "WVALs are critical in normalizing the data, which allows for comparison between sites that may differ in sample collection methods, testing methods, and testing frequency.")
+          )
+        ),
+        h5("Source code: https://github.com/jacob-pancoast17/vrpwm-dashboard")
     ),
     layout_columns(
         layout_columns(
@@ -60,6 +82,9 @@ ui <- page_sidebar(
             card(plotOutput("heatmap"))
         ),
         card(plotOutput("map", click = "map_click"))
+    ),
+    span(
+      h4("Created by Jacob Pancoast"), h5("Undergraduate at the University of Vermont"), h5("https://jacob-pancoast17.github.io/")
     )
 )
 
