@@ -217,7 +217,8 @@ server <- function(input, output, session) {
         # If selected year is the current, unfinished year, use that number of weeks
         if (input$season == max(seasons_of_data()))
         {
-            as.numeric(ceiling((max_date() - ceiling_date(
+          # Subtract the start date from the max date and divide by 7
+            as.numeric(ceiling((max_date() - floor_date(
                 make_date(
                     year = selected_y1(),
                     month = 7,
