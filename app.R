@@ -195,15 +195,15 @@ server <- function(input, output, session) {
     min_week <- reactive({
 
         # If selected season is the first one in the data, use that number of weeks
-        min_week <- if (input$season == min(seasons_of_data())) {
-            as.numeric((ceiling_date(
+        if (input$season == min(seasons_of_data())) {
+            as.numeric((min_date() - ceiling_date(
                 make_date(
-                    year = year(min_date()),
+                    year = selected_y1(),
                     month = 7,
                     day = 1
                     ),
                     "week"
-                ) - min_date()) / 7)
+                )) / 7 + 1)
             } else { # Otherwise we are in a year that has a beginning so just use 1
                 1
                 }
