@@ -509,7 +509,7 @@ server <- function(input, output, session) {
                 ),
             y = "County",
             x = "Month",
-            fill = "WVAL Classification"
+            fill = "Activity Level"
         ) +
         scale_fill_manual(
             values = wval_colors(),
@@ -539,13 +539,22 @@ server <- function(input, output, session) {
         left_join(filtered_data_step_4_5_for_individ(), by = join_by(CNTYNAME == county)) |>
 
         mutate(
-            category = categorize_wval(wval)
+            wval = factor(
+                categorize_wval(wval),
+                levels = c(
+                    "Very Low",
+                    "Low",
+                    "Moderate",
+                    "High",
+                    "Very High"
+                )
             )
+        )
 
     map <- ggplot(spatial) +
         geom_sf(
             aes(
-                fill = category,
+                fill = as.factor(wval),
             ),
             color = 'white',
             linewidth = 0.3
@@ -553,8 +562,7 @@ server <- function(input, output, session) {
         scale_fill_manual(
             values = wval_colors(),
             na.value = "#6b6969",
-            name = "Activity Level",
-            drop = FALSE
+            name = "Activity Level"
         ) +
         theme_void()
 
