@@ -598,7 +598,7 @@ server <- function(input, output, session) {
             "<h3>", "State", "</h3>",
             "<h2>", "VERMONT", "</h2>",
             "<h4>", selected_date(), "</h4>",
-            "<p>", "Median WVAL: ", median_wval, "</p>"
+            "<p>", "Activity: ", median_wval, "</p>"
         ))
         
     })
