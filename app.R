@@ -25,7 +25,7 @@ ui <- page_sidebar(
     theme = theme,
     title = span(h1("Vermont Respiratory Pathogens Wastewater Monitoring Dashboard"), style = "color: #106314; font-weight: bold"),
     sidebar = sidebar(
-        h4("Last updated 8/22/2026",
+        h4("Last updated 8/30/2026",
           popover(
             bs_icon(
               "question-circle"
